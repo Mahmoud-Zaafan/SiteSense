@@ -1,0 +1,39 @@
+# =============================================================================
+# BoT-SORT Configuration - Tuned for Heavy Construction Machinery
+# =============================================================================
+# Default BoT-SORT is tuned for fast-moving pedestrians. Construction equipment
+# moves slowly, stops for minutes, and is frequently occluded by other machines.
+# These parameters are specifically calibrated for that operating profile.
+
+tracker_type: botsort
+
+# --- Detection Thresholds ---
+# Lower than pedestrian defaults because equipment detections can be partially
+# occluded, dusty, or at unusual angles.
+track_high_thresh: 0.4       # Default: 0.5. Lowered for equipment (frequently dusty/occluded)
+track_low_thresh: 0.15       # Default: 0.1. Include low-confidence detections for second-pass matching
+new_track_thresh: 0.5        # Minimum confidence to spawn a NEW track (prevents false initializations)
+
+# --- Track Buffer ---
+# How many frames a track can be "lost" before being deleted.
+# Pedestrian default: 30 frames (~1s at 30fps).
+# Construction: equipment can disappear behind a truck for 10+ seconds.
+track_buffer: 150            # 10 seconds at 15fps. Increase to 300 for very congested sites.
+
+# --- Matching Thresholds ---
+match_thresh: 0.85           # Default: 0.8. Stricter matching to avoid merging neighboring machines.
+proximity_thresh: 0.6        # Spatial proximity gate. Equipment bboxes are large, so relax slightly.
+appearance_thresh: 0.3       # Re-ID cosine distance threshold. Lower = stricter identity matching.
+
+# --- Feature Fusion ---
+fuse_score: true             # Fuse detection confidence into the association cost matrix
+with_reid: true              # Enable Re-ID appearance features (DINOv3 via custom injection)
+
+# --- Camera Motion Compensation ---
+cmc_method: none             # Set to 'sparseOptFlow' if camera is pan-tilt-zoom. 'none' for static CCTV.
+
+# --- Kalman Filter Motion Model ---
+# BoT-SORT uses a standard linear Kalman filter for motion prediction.
+# WARNING: Kalman filters assume constant velocity. Excavators violate this
+# when they stop to dig. The DINOv3 Re-ID Gallery (Phase 5) compensates by
+# re-identifying equipment that the Kalman filter loses during stationary periods.

@@ -1,0 +1,71 @@
+# ========================================
+# Eagle Vision — .gitignore
+# ========================================
+
+# ----- Secrets & Environment -----
+.env
+.env.local
+.env.production
+
+# ----- AI Assistant configs -----
+.claude/
+.gemini/
+
+# ----- Model weights (use Git LFS or download separately) -----
+models/**/*.pth
+models/**/*.pt
+models/**/*.onnx
+models/**/*.engine
+models/**/*.trt
+models/**/*.safetensors
+models/dinov3-vitb16-pretrain-lvd1689m/
+models/hf_cache/
+
+# ----- Data & Videos -----
+data/tests/
+
+# ----- Training notebooks -----
+training/*.ipynb
+*.ipynb
+
+# ----- Legacy kaggle folder (migrated to training/) -----
+kaggle/
+
+# ----- Docker volumes -----
+kafka_data/
+timescaledb_data/
+
+# ----- Development-only docs (drafts, research, scratch) -----
+docs/
+
+# ----- Logs -----
+logs/
+*.log
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+env/
+
+# ----- IDE -----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ----- OS -----
+.DS_Store
+Thumbs.db
+
+# ----- Root dev files -----
+/get_tb.py
+/implementation_plan.md
+/scripts/create_demo_gif.py
+make_gif/
+assets/demo2.gif

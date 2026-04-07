@@ -1,0 +1,20 @@
+# CV Inference Service - Requirements
+# Core detection + tracking
+rfdetr>=1.0.0
+boxmot>=11.0.0
+opencv-python-headless>=4.9.0
+torch>=2.2.0
+torchvision>=0.17.0
+
+# DINOv3 Re-ID (persistent identity matching)
+transformers>=4.56.0
+accelerate>=0.30.0
+huggingface_hub>=0.20.0
+
+# Kafka producer
+confluent-kafka>=2.3.0
+
+# Utilities
+numpy>=1.26.0
+pyyaml>=6.0
+Pillow>=10.0

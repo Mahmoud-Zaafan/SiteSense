@@ -1,0 +1,187 @@
+version: '3.8'
+
+# =============================================================================
+# Construction Equipment Monitoring Pipeline
+# Docker Compose (KRaft Kafka - No Zookeeper)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infrastructure: Kafka (KRaft Mode)
+  # ---------------------------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cem-kafka
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 15s
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure: Kafka Topic Initialization
+  # ---------------------------------------------------------------------------
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: cem-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        echo "Creating Kafka topics..."
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic equipment.telemetry.raw \
+          --partitions 3 \
+          --replication-factor 1
+        kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists \
+          --topic equipment.state.aggregated \
+          --partitions 3 \
+          --replication-factor 1 \
+          --config cleanup.policy=compact
+        echo "Topics created:"
+        kafka-topics --bootstrap-server kafka:9092 --list
+        echo "Kafka initialization complete."
+
+  # ---------------------------------------------------------------------------
+  # Infrastructure: TimescaleDB
+  # ---------------------------------------------------------------------------
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: cem-timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-cem_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cem_secure_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-construction_monitor}
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+      - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cem_admin} -d ${POSTGRES_DB:-construction_monitor}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Service: CV Inference (GPU-accelerated)
+  # ---------------------------------------------------------------------------
+  cv-inference:
+    build:
+      context: ./services/cv-inference
+      dockerfile: Dockerfile
+    container_name: cem-cv-inference
+    profiles:
+      - pipeline
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: equipment.telemetry.raw
+      VIDEO_SOURCE: ${VIDEO_SOURCE:-/data/test_video.mp4}
+      MODEL_PATH: /models
+      DEVICE: ${DEVICE:-cuda}
+      HF_TOKEN: ${HF_TOKEN}
+      REID_USE_PROJECTION: "1"
+    volumes:
+      - ./models:/models
+      - ./data:/data
+      - ./configs:/configs
+      - ./models/hf_cache:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+  # ---------------------------------------------------------------------------
+  # Service: Analytics (Stateful - Dwell Time + State Machine)
+  # ---------------------------------------------------------------------------
+  analytics:
+    build:
+      context: ./services/analytics
+      dockerfile: Dockerfile
+    container_name: cem-analytics
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: equipment.telemetry.raw
+      KAFKA_TOPIC_AGGREGATED: equipment.state.aggregated
+      KAFKA_CONSUMER_GROUP: analytics-service
+
+  # ---------------------------------------------------------------------------
+  # Service: DB Sink
+  # ---------------------------------------------------------------------------
+  db-sink:
+    build:
+      context: ./services/db-sink
+      dockerfile: Dockerfile
+    container_name: cem-db-sink
+    depends_on:
+      kafka:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC_RAW: equipment.telemetry.raw
+      KAFKA_TOPIC_AGGREGATED: equipment.state.aggregated
+      KAFKA_CONSUMER_GROUP: db-sink-service
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-cem_admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-cem_secure_2026}
+      DB_NAME: ${POSTGRES_DB:-construction_monitor}
+
+  # ---------------------------------------------------------------------------
+  # Service: Dashboard (Streamlit MVP)
+  # ---------------------------------------------------------------------------
+  dashboard:
+    build:
+      context: ./services/dashboard
+      dockerfile: Dockerfile
+    container_name: cem-dashboard
+    ports:
+      - "8505:8501"
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-cem_admin}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-cem_secure_2026}
+      DB_NAME: ${POSTGRES_DB:-construction_monitor}
+
+volumes:
+  kafka_data:
+    driver: local
+  timescaledb_data:
+    driver: local

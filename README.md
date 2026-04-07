@@ -132,7 +132,7 @@ A dedicated `VideoIngestionService` runs a **background producer thread** that c
 - **Frame skipping**: Configurable `frame_skip` to reduce GPU load at 60 FPS sources
 - Supports MP4, AVI, MKV files and RTSP/HTTP live streams
 
-### Phase 2: Object Detection — RF-DETR v3
+### Phase 2: Object Detection — RF-DETR
 
 **Model**: RF-DETR (Real-time Foundation Detection Transformer), an end-to-end object detector that eliminates NMS post-processing.
 
@@ -429,8 +429,8 @@ Originally indexed by transient `track_id` — state reset every time the tracke
 ### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/sitesense.git
-cd sitesense
+git clone https://github.com/Mahmoud-Zaafan/SiteSense.git
+cd SiteSense
 
 cp .env.example .env
 # Edit .env with your HF_TOKEN and database credentials
@@ -438,15 +438,20 @@ cp .env.example .env
 
 ### 2. Download Model Weights
 
-Place in `models/`:
+Download all weights from [Hugging Face Hub](https://huggingface.co/Zaafan/sitesense-weights) into the `models/` directory:
+
+```bash
+pip install huggingface_hub
+huggingface-cli download Zaafan/sitesense-weights --local-dir models/
+```
 
 | File | Size | Description |
 |:---|:---:|:---|
-| `rfdetr_construction_v3.pth` | 122 MB | RF-DETR detector (8-class) |
+| `rfdetr_construction.pth` | 122 MB | RF-DETR detector (8-class) |
 | `dinov3_reid_head.pth` | 5.4 MB | DINOv3 Re-ID projection head |
 | `osnet_x0_25_msmt17.pt` | 2.9 MB | OSNet Re-ID (BoT-SORT built-in) |
 
-> The DINOv3 backbone is auto-downloaded from Hugging Face on first run using `HF_TOKEN`.
+> The DINOv3 backbone (`dinov3-vitb16-pretrain-lvd1689m/`) is auto-downloaded from Hugging Face on first run using your `HF_TOKEN`.
 
 ### 3. Launch Infrastructure
 
@@ -494,7 +499,7 @@ sitesense/
 ├── docs/
 │   └── technical_assessment.md          # Original project specification
 ├── models/                              # Model weights (gitignored)
-│   ├── rfdetr_construction_v3.pth       # RF-DETR detector (122 MB)
+│   ├── rfdetr_construction.pth          # RF-DETR detector (122 MB)
 │   ├── dinov3_reid_head.pth             # Re-ID projection head (5.4 MB)
 │   ├── osnet_x0_25_msmt17.pt            # OSNet for BoT-SORT (2.9 MB)
 │   └── dinov3-vitb16-pretrain-lvd1689m/ # DINOv3 backbone (327 MB)
