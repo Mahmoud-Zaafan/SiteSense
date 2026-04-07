@@ -24,6 +24,8 @@
 
 *Real-time detection, tracking, identity assignment, and activity classification of construction equipment from aerial footage.*
 
+> ⏳ *The demo GIF may take up to a minute to load due to its size.*
+
 </div>
 
 ---
