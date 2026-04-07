@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🦅 Eagle Vision
+# 🏗️ SiteSense
 
 ### Real-Time Construction Equipment Monitoring via Aerial Computer Vision
 
@@ -20,7 +20,7 @@
 
 <div align="center">
 
-![Eagle Vision Demo](assets/demo.gif)
+![SiteSense Demo](assets/demo.gif)
 
 *Real-time detection, tracking, identity assignment, and activity classification of construction equipment from aerial footage.*
 
@@ -429,8 +429,8 @@ Originally indexed by transient `track_id` — state reset every time the tracke
 ### 1. Clone & Configure
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/eagle-vision.git
-cd eagle-vision
+git clone https://github.com/YOUR_USERNAME/sitesense.git
+cd sitesense
 
 cp .env.example .env
 # Edit .env with your HF_TOKEN and database credentials
@@ -484,7 +484,7 @@ docker compose --profile pipeline up cv-inference
 ## Project Structure
 
 ```
-eagle-vision/
+sitesense/
 ├── assets/
 │   └── demo.gif                         # README demo
 ├── configs/
