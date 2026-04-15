@@ -21,20 +21,17 @@
 The same test clip processed through both detectors. Identical tracking, Re-ID,
 and activity classification downstream — only the detector changes.
 
-<table align="center">
-<tr>
-<td align="center"><strong>RF-DETR</strong> (default)</td>
-<td align="center"><strong>YOLO26-L</strong></td>
-</tr>
-<tr>
-<td><img src="assets/demo_rfdetr.gif" alt="RF-DETR demo" width="480"/></td>
-<td><img src="assets/demo_yolo.gif" alt="YOLO26-L demo" width="480"/></td>
-</tr>
-<tr>
-<td align="center"><sub>mAP50-95 = <b>0.761</b> · ~9–10 FPS</sub></td>
-<td align="center"><sub>mAP50-95 = 0.740 · ~11–13 FPS</sub></td>
-</tr>
-</table>
+#### RF-DETR (default) — mAP50-95 = **0.761** · ~9–10 FPS
+
+<p align="center">
+  <img src="assets/demo_rfdetr.gif" alt="RF-DETR demo" width="100%"/>
+</p>
+
+#### YOLO26-L — mAP50-95 = 0.740 · ~11–13 FPS
+
+<p align="center">
+  <img src="assets/demo_yolo.gif" alt="YOLO26-L demo" width="100%"/>
+</p>
 
 > ⏳ *The demo GIFs may take up to a minute to load due to their size.*
 
