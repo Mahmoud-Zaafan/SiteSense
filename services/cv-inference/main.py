@@ -29,8 +29,15 @@ import cv2
 import numpy as np
 import torch
 
+# Shim: transformers 4.56.2 (DINOv3 image processor) calls
+# torch.compiler.is_compiling(), which was added in torch 2.3. We're pinned
+# to torch 2.2.2 via boxmot<12's torchvision<0.18 constraint. At inference
+# time we never use torch.compile, so a constant False is correct.
+if not hasattr(torch.compiler, "is_compiling"):
+    torch.compiler.is_compiling = lambda: False
 
-# ── Model weight resolver ────────────────────────────────────────────────
+
+# ── Model weight resolver────────────────────────────────────────────────
 HF_REPO_ID = "Zaafan/sitesense-weights"
 
 def resolve_weights(filename: str, local_dir: str = "/models") -> str:
@@ -107,10 +114,15 @@ class RFDETRDetector:
         from rfdetr import RFDETRBase
         # In rfdetr, the weights path is passed as `pretrain_weights`
         self.model = RFDETRBase(num_classes=8, pretrain_weights=self.weights_path)
-        # Optimize model for faster inference (torch.compile / fused ops)
+        # Optimize model for faster inference (torch.jit.trace fused ops).
+        # rfdetr 1.3.0's traced output isn't compatible with every torch
+        # version — if tracing fails, fall back to the unoptimized model.
         if hasattr(self.model, 'optimize_for_inference'):
-            self.model.optimize_for_inference()
-            logger.info("RF-DETR inference optimization applied")
+            try:
+                self.model.optimize_for_inference()
+                logger.info("RF-DETR inference optimization applied")
+            except Exception as e:
+                logger.warning(f"RF-DETR optimize_for_inference() failed ({e}); running unoptimized")
         logger.info(f"RF-DETR loaded from {self.weights_path} on {self.device}")
 
     def predict(self, frame: np.ndarray) -> np.ndarray:
@@ -138,6 +150,56 @@ class RFDETRDetector:
         clses = detections.class_id.reshape(-1, 1)    # (N, 1)
 
         return np.hstack([boxes, confs, clses]).astype(np.float32)
+
+
+# =============================================================================
+# YOLO26-L Detector Wrapper
+# =============================================================================
+class YOLODetector:
+    """
+    Wraps the fine-tuned YOLO26-L model for inference.
+    Class order (0..7) matches the RF-DETR training, so downstream code
+    (CLASS_NAMES, CLASS_PREFIXES, activity rules) works unchanged.
+    """
+
+    def __init__(self, weights_path: str, num_classes: int = 8,
+                 confidence_threshold: float = 0.35, device: str = 'cuda',
+                 imgsz: int = 800):
+        self.confidence_threshold = confidence_threshold
+        self.device = device if torch.cuda.is_available() else 'cpu'
+        self.weights_path = weights_path
+        self.imgsz = imgsz
+        self.model = None
+
+    def load(self):
+        from ultralytics import YOLO
+        self.model = YOLO(self.weights_path)
+        self.model.to(self.device)
+        logger.info(f"YOLO26-L loaded from {self.weights_path} on {self.device} (imgsz={self.imgsz})")
+
+    def predict(self, frame: np.ndarray) -> np.ndarray:
+        if self.model is None:
+            return np.empty((0, 6))
+
+        results = self.model.predict(
+            frame,
+            conf=self.confidence_threshold,
+            imgsz=self.imgsz,
+            device=self.device,
+            verbose=False,
+        )
+        if not results:
+            return np.empty((0, 6))
+
+        boxes = results[0].boxes
+        if boxes is None or len(boxes) == 0:
+            return np.empty((0, 6))
+
+        xyxy = boxes.xyxy.cpu().numpy()
+        confs = boxes.conf.cpu().numpy().reshape(-1, 1)
+        clses = boxes.cls.cpu().numpy().reshape(-1, 1)
+
+        return np.hstack([xyxy, confs, clses]).astype(np.float32)
 
 
 # =============================================================================
@@ -1333,22 +1395,38 @@ class InferencePipeline:
         import shutil
         model_dir = os.getenv('MODEL_PATH', '/models')
 
-        # Phase 3: RF-DETR Detector
-        weights_path = resolve_weights('rfdetr_construction.pth', local_dir=model_dir)
-        
-        # Prevent base model redownloads by copying the user mapped file
-        user_model = os.path.join(model_dir, "rf-detr-base.pth")
-        if os.path.exists(user_model) and not os.path.exists("rf-detr-base.pth"):
-            try:
-                shutil.copy2(user_model, "rf-detr-base.pth")
-                logger.info("Found user's manually downloaded rf-detr-base.pth. Bypassing download!")
-            except Exception as e:
-                pass
-        self.detector = RFDETRDetector(
-            weights_path=weights_path,
-            confidence_threshold=self.config.get('confidence_threshold', 0.35),
-            device=self.config.get('device', 'cuda')
-        )
+        # Phase 3: Detector — switchable via DETECTOR_TYPE env var
+        # Default is yolo (yolo26l_construction_v1.pt). Set DETECTOR_TYPE=rfdetr
+        # to run the original RF-DETR checkpoint instead.
+        detector_type = os.getenv('DETECTOR_TYPE', 'yolo').lower()
+
+        if detector_type == 'yolo':
+            weights_path = resolve_weights('yolo26l_construction_v1.pt', local_dir=model_dir)
+            self.detector = YOLODetector(
+                weights_path=weights_path,
+                confidence_threshold=self.config.get('confidence_threshold', 0.35),
+                device=self.config.get('device', 'cuda'),
+                imgsz=int(os.getenv('YOLO_IMGSZ', '800')),
+            )
+        elif detector_type == 'rfdetr':
+            weights_path = resolve_weights('rfdetr_construction.pth', local_dir=model_dir)
+
+            # Prevent base model redownloads by copying the user-mapped file
+            user_model = os.path.join(model_dir, "rf-detr-base.pth")
+            if os.path.exists(user_model) and not os.path.exists("rf-detr-base.pth"):
+                try:
+                    shutil.copy2(user_model, "rf-detr-base.pth")
+                    logger.info("Found user's manually downloaded rf-detr-base.pth. Bypassing download!")
+                except Exception:
+                    pass
+            self.detector = RFDETRDetector(
+                weights_path=weights_path,
+                confidence_threshold=self.config.get('confidence_threshold', 0.35),
+                device=self.config.get('device', 'cuda'),
+            )
+        else:
+            raise ValueError(f"Unknown DETECTOR_TYPE={detector_type!r} (expected 'yolo' or 'rfdetr')")
+
         self.detector.load()
 
         # Phase 4: BoT-SORT Tracker
@@ -1951,7 +2029,10 @@ def main():
         'confidence_threshold': float(os.getenv('CONFIDENCE_THRESHOLD', '0.50')),
         'reid_threshold': float(os.getenv('REID_THRESHOLD', '0.85')),  # Conservative: Re-ID only fires after BoT-SORT drops track (>20s lost)
         'reid_gallery_ttl': int(os.getenv('REID_GALLERY_TTL', '18000')),  # 5min at 60fps — vehicles can leave and return
-        'weights_path': os.path.join(os.getenv('MODEL_PATH', '/models'), 'rfdetr_construction.pth'),
+        'weights_path': os.path.join(
+            os.getenv('MODEL_PATH', '/models'),
+            'yolo26l_construction_v1.pt' if os.getenv('DETECTOR_TYPE', 'yolo').lower() == 'yolo' else 'rfdetr_construction.pth',
+        ),
     }
 
     # Initialize pipeline

@@ -18,15 +18,29 @@
 
 ## Demo
 
-<div align="center">
+The same test clip processed through both detectors. Identical tracking, Re-ID,
+and activity classification downstream — only the detector changes.
 
-![SiteSense Demo](assets/demo.gif)
+<table align="center">
+<tr>
+<td align="center"><strong>RF-DETR</strong> (default)</td>
+<td align="center"><strong>YOLO26-L</strong></td>
+</tr>
+<tr>
+<td><img src="assets/demo_rfdetr.gif" alt="RF-DETR demo" width="480"/></td>
+<td><img src="assets/demo_yolo.gif" alt="YOLO26-L demo" width="480"/></td>
+</tr>
+<tr>
+<td align="center"><sub>mAP50-95 = <b>0.761</b> · ~9–10 FPS</sub></td>
+<td align="center"><sub>mAP50-95 = 0.740 · ~11–13 FPS</sub></td>
+</tr>
+</table>
 
-*Real-time detection, tracking, identity assignment, and activity classification of construction equipment from aerial footage.*
+> ⏳ *The demo GIFs may take up to a minute to load due to their size.*
 
-> ⏳ *The demo GIF may take up to a minute to load due to its size.*
-
-</div>
+**Full-resolution annotated videos** (~69 MB each, hosted on HuggingFace):
+[RF-DETR](https://huggingface.co/Zaafan/sitesense-weights/resolve/main/demo/output_annotated_RF-DETR.mp4) ·
+[YOLO26-L](https://huggingface.co/Zaafan/sitesense-weights/resolve/main/demo/output_annotated_YOLO.mp4)
 
 ---
 
@@ -47,18 +61,27 @@
 
 ## Key Metrics
 
-| Metric | Value |
-|:---|:---:|
-| **mAP@50:95** | **0.761** |
-| **mAP@50** | **0.910** |
-| **F1 Score** | **0.886** |
-| **Precision** | **0.929** |
-| **Recall** | **0.847** |
-| **Equipment Classes** | **8** |
-| **Pipeline FPS** | **9–10** (RTX 3050 Ti) |
+Two detectors are available at runtime — **RF-DETR** (default, best accuracy) and
+**YOLO26-L** (faster, NMS-free). Both are trained from scratch on the same merged
+MOCS + ACID v2 dataset with the identical train/val/test split, so the numbers
+below are directly comparable.
+
+| Metric | RF-DETR (default) | YOLO26-L | Δ (RF − YOLO) |
+|:---|:---:|:---:|:---:|
+| **mAP@50:95** | **0.761** | 0.740 | +2.1 pts |
+| **mAP@50** | **0.910** | 0.905 | +0.5 pts |
+| **F1 Score** | **0.886** | 0.876 | +1.0 pts |
+| **Precision** | **0.929** | 0.924 | +0.5 pts |
+| **Recall** | **0.847** | 0.834 | +1.3 pts |
+| **Equipment Classes** | 8 | 8 | — |
+| **Pipeline FPS** (RTX 3050 Ti) | 9–10 | 11–13 | YOLO faster |
+
+RF-DETR wins overall mAP50-95 on **7 of 8 classes** — bulldozer is the only
+category where YOLO26-L edges ahead. Runtime switch via `DETECTOR_TYPE=rfdetr`
+or `DETECTOR_TYPE=yolo` (see [Quick Start](#quick-start)).
 
 <details>
-<summary><strong>Per-Class Detection Results</strong></summary>
+<summary><strong>Per-Class Detection Results (RF-DETR)</strong></summary>
 
 | Class | AP@50:95 | F1 | Precision | Recall |
 |:---|:---:|:---:|:---:|:---:|
@@ -70,6 +93,42 @@
 | Tower Crane | 0.692 | 0.839 | 0.904 | 0.782 |
 | Roller Compactor | 0.838 | 0.925 | 0.953 | 0.899 |
 | Cement Mixer | 0.800 | 0.922 | 0.965 | 0.882 |
+
+</details>
+
+<details>
+<summary><strong>Per-Class Detection Results (YOLO26-L)</strong></summary>
+
+| Class | AP@50:95 | AP@50 | Precision | Recall |
+|:---|:---:|:---:|:---:|:---:|
+| Excavator | 0.806 | 0.956 | 0.948 | 0.903 |
+| Dump Truck | 0.661 | 0.860 | 0.896 | 0.776 |
+| Bulldozer | **0.796** | 0.946 | 0.944 | 0.895 |
+| Wheel Loader | 0.792 | 0.923 | 0.924 | 0.870 |
+| Mobile Crane | 0.628 | 0.827 | 0.895 | 0.729 |
+| Tower Crane | 0.632 | 0.846 | 0.868 | 0.740 |
+| Roller Compactor | 0.825 | 0.956 | 0.958 | 0.895 |
+| Cement Mixer | 0.779 | 0.922 | 0.955 | 0.866 |
+
+</details>
+
+<details>
+<summary><strong>Head-to-Head (AP@50:95 per class)</strong></summary>
+
+| Class | RF-DETR | YOLO26-L | Winner |
+|:---|:---:|:---:|:---:|
+| Excavator | **0.811** | 0.805 | RF-DETR +0.006 |
+| Dump Truck | **0.675** | 0.661 | RF-DETR +0.014 |
+| Bulldozer | 0.785 | **0.796** | YOLO26-L +0.011 |
+| Wheel Loader | **0.810** | 0.792 | RF-DETR +0.018 |
+| Mobile Crane | **0.675** | 0.628 | RF-DETR +0.047 |
+| Tower Crane | **0.692** | 0.632 | RF-DETR +0.060 |
+| Roller Compactor | **0.838** | 0.825 | RF-DETR +0.013 |
+| Cement Mixer | **0.800** | 0.779 | RF-DETR +0.021 |
+
+RF-DETR's biggest wins are on **mobile_crane** and **tower_crane** — the two
+most under-represented classes in training. Its set-based prediction handles
+long, thin boom shapes and heavy occlusion better than YOLO's anchor-based head.
 
 </details>
 
@@ -85,7 +144,7 @@ flowchart TD
 
     subgraph B["CV Inference Service (GPU)"]
         direction LR
-        B1["Video Ingestion"] --> B2["RF-DETR Detection"]
+        B1["Video Ingestion"] --> B2["RF-DETR / YOLO26-L Detection"]
         B2 --> B3["TAI Filter"]
         B3 --> B4["BoT-SORT Tracking"]
         B4 --> B5["DINOv3 Re-ID"]
@@ -149,7 +208,10 @@ The merge script maps heterogeneous class names (e.g., `"Loader"`, `"wheel_loade
 <details>
 <summary><strong>Training Hyperparameters</strong></summary>
 
-- **Combined dataset**: ~65,000 images (42,733 train / 4,615 val / 990 test)
+- **Combined dataset** (after merge + dedup + filter):
+  - **Train**: 42,733 images / 66,596 annotations
+  - **Val**:    4,615 images /  8,415 annotations
+  - **Test**:     990 images (ACID-only, held out)
 - **Classes**: excavator, dump_truck, bulldozer, wheel_loader, mobile_crane, tower_crane, roller_compactor, cement_mixer
 - **Resolution**: 784px (max divisible by 56 for ViT patch size)
 - **Epochs**: 40, batch size 40, cosine LR with 2-epoch warmup
@@ -278,7 +340,7 @@ Each tracked equipment generates a JSON event per frame:
 
 ### Phase 8: Annotated Video Output
 
-Color-coded bounding boxes, equipment IDs, state labels, and a HUD overlay (timestamp, tracked count, FPS) rendered to `data/output_annotated.mp4` at source FPS.
+Color-coded bounding boxes, equipment IDs, state labels, and a HUD overlay (timestamp, tracked count, FPS) rendered to `data/output_annotated_RF-DETR.mp4` or `data/output_annotated_YOLO.mp4` (depending on `DETECTOR_TYPE`) at source FPS.
 
 ---
 
@@ -338,7 +400,9 @@ Premium dark-theme UI with:
 
 All training scripts are in `training/` and designed to run on any GPU with 40GB+ VRAM.
 
-### Detection Model — `train_detector.py`
+### Detection Models
+
+**RF-DETR — `train_detector.py`** (default, best accuracy)
 
 ```bash
 python training/train_detector.py
@@ -347,6 +411,18 @@ python training/train_detector.py
 RF-DETR Base fine-tuned on merged MOCS + ACID dataset:
 - 40 epochs, 784px, cosine LR, early stopping
 - **Result**: mAP@50:95 = **0.761**, mAP@50 = **0.910**, F1 = **0.886**
+
+**YOLO26-L — `train_yolo26.py`** (faster alternative)
+
+```bash
+python training/train_yolo26.py
+```
+
+Ultralytics YOLO26-L (24.8M params) fine-tuned on the **identical** train/val/test
+split as RF-DETR for direct comparison:
+- 40 epochs, 800px, batch 32, optimizer auto (MuSGD), cos_lr, close_mosaic=10
+- STAL (Small-Target-Aware Label assignment), NMS-free end-to-end inference, ProgLoss
+- **Result**: mAP@50:95 = **0.740**, mAP@50 = **0.905**, F1 = **0.876**
 
 ### Re-ID Projection Head — `train_reid.py`
 
@@ -376,9 +452,26 @@ X3D-S (Kinetics-400 pretrained, 3.8M params) with two-phase fine-tuning:
 ## Design Decisions & Trade-offs
 
 <details>
-<summary><strong>Why RF-DETR over YOLO?</strong></summary>
+<summary><strong>Why RF-DETR over YOLO? (measured, not hypothetical)</strong></summary>
 
-RF-DETR's set-based prediction (Hungarian matching) is architecturally superior to YOLO's anchor-based + NMS paradigm for densely overlapping equipment. Trade-off: 9–10 FPS vs ~15+ FPS with YOLOv11 — acceptable for utilization monitoring where accuracy > frame rate.
+To answer this properly we trained **both** detectors on the identical merged
+MOCS + ACID v2 split (same train/val/test image lists, same 8-class mapping,
+same 40-epoch budget, same 784/800px resolution). Results on the held-out val
+split:
+
+- **RF-DETR**: mAP50-95 = **0.761**
+- **YOLO26-L**: mAP50-95 = **0.7395** (−2.15 pts)
+- RF-DETR wins **7 of 8** per-class AP50-95
+
+The largest gaps are on **mobile_crane (+4.7 pts)** and **tower_crane (+6.0 pts)**
+— the two most under-represented, most heavily occluded classes. RF-DETR's
+set-based prediction (Hungarian matching) handles long boom shapes and
+overlapping equipment better than YOLO's anchor-based + NMS head.
+
+Trade-off: RF-DETR runs at ~9–10 FPS vs YOLO's 11–13 FPS on an RTX 3050 Ti.
+Acceptable for utilization monitoring where accuracy > frame rate, but both
+detectors are kept available via the `DETECTOR_TYPE` runtime switch so you
+can pick based on workload.
 </details>
 
 <details>
@@ -449,7 +542,8 @@ huggingface-cli download Zaafan/sitesense-weights --local-dir models/
 
 | File | Size | Description |
 |:---|:---:|:---|
-| `rfdetr_construction.pth` | 122 MB | RF-DETR detector (8-class) |
+| `rfdetr_construction.pth` | 122 MB | RF-DETR detector (8-class) — default |
+| `yolo26l_construction_v1.pt` | 51 MB | YOLO26-L detector (8-class) — alternative |
 | `dinov3_reid_head.pth` | 5.4 MB | DINOv3 Re-ID projection head |
 | `osnet_x0_25_msmt17.pt` | 2.9 MB | OSNet Re-ID (BoT-SORT built-in) |
 
@@ -471,7 +565,7 @@ docker compose --profile pipeline up cv-inference
 ### 5. View Results
 
 - **Dashboard**: http://localhost:8505
-- **Annotated Video**: `data/output_annotated.mp4`
+- **Annotated Video**: `data/output_annotated_RF-DETR.mp4` or `data/output_annotated_YOLO.mp4` (depending on `DETECTOR_TYPE`)
 
 > The CV pipeline uses a Docker Compose [profile](https://docs.docker.com/compose/profiles/) — it doesn't auto-start with `docker compose up`, letting you restart infrastructure without re-processing.
 
@@ -481,6 +575,8 @@ docker compose --profile pipeline up cv-inference
 |:---|:---|:---|
 | `VIDEO_SOURCE` | `/data/test_video.mp4` | Input video path (inside container) |
 | `DEVICE` | `cuda` | Inference device |
+| `DETECTOR_TYPE` | `yolo` | Detector backend — `yolo` (YOLO26-L) or `rfdetr` (RF-DETR). Set per-run with `DETECTOR_TYPE=rfdetr docker compose up -d cv-inference` |
+| `YOLO_IMGSZ` | `800` | YOLO inference resolution (must be divisible by 32) |
 | `CONFIDENCE_THRESHOLD` | `0.35` | Detection confidence cutoff |
 | `REID_USE_PROJECTION` | `1` | Enable DINOv3 contrastive projection head |
 | `REID_THRESHOLD` | `0.85` | Re-ID gallery matching threshold |
@@ -502,6 +598,7 @@ sitesense/
 │   └── technical_assessment.md          # Original project specification
 ├── models/                              # Model weights (gitignored)
 │   ├── rfdetr_construction.pth          # RF-DETR detector (122 MB)
+│   ├── yolo26l_construction_v1.pt       # YOLO26-L detector (51 MB)
 │   ├── dinov3_reid_head.pth             # Re-ID projection head (5.4 MB)
 │   ├── osnet_x0_25_msmt17.pt            # OSNet for BoT-SORT (2.9 MB)
 │   └── dinov3-vitb16-pretrain-lvd1689m/ # DINOv3 backbone (327 MB)
@@ -526,13 +623,29 @@ sitesense/
 │       └── Dockerfile
 ├── training/
 │   ├── train_detector.py                # RF-DETR fine-tuning
+│   ├── train_yolo26.py                  # YOLO26-L fine-tuning
 │   ├── train_reid.py                    # DINOv3 contrastive head
 │   ├── train_activity_classifier.py     # X3D-S classifier
-│   └── visualize_reid.py               # Re-ID embedding visualization
+│   └── visualize_reid.py                # Re-ID embedding visualization
 ├── docker-compose.yml                   # 7-container orchestration
 ├── .env.example                         # Environment template
 └── README.md
 ```
+
+---
+
+## Roadmap
+
+| Status | Feature |
+|:---:|:---|
+| ✅ | RF-DETR object detection (8 classes) |
+| ✅ | YOLO26-L alternative detector (runtime switch via `DETECTOR_TYPE`) |
+| ✅ | BoT-SORT multi-object tracking |
+| ✅ | DINOv3 persistent Re-ID with contrastive projection head |
+| ✅ | Rule-based activity classification (Idle / Active / Digging / Dumping) |
+| ✅ | Docker Compose full-stack deployment |
+| ✅ | Streamlit real-time dashboard |
+| 🔄 | **X3D-S video activity classifier** — replacing rule-based classification with a learned spatiotemporal model. Training pipeline and inference integration are already built (`training/train_activity_classifier.py`), currently curating the labeled activity dataset. |
 
 ---
 

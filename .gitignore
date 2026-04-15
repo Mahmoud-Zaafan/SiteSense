@@ -23,6 +23,7 @@ models/hf_cache/
 
 # ----- Data & Videos -----
 data/tests/
+data/output_annotated_*.mp4
 
 # ----- Training notebooks -----
 training/*.ipynb
@@ -30,6 +31,8 @@ training/*.ipynb
 
 # ----- Legacy kaggle folder (migrated to training/) -----
 kaggle/
+KAGGLE Results/
+YOLO Results/
 
 # ----- Docker volumes -----
 kafka_data/

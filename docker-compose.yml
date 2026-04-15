@@ -106,6 +106,7 @@ services:
       DEVICE: ${DEVICE:-cuda}
       HF_TOKEN: ${HF_TOKEN}
       REID_USE_PROJECTION: "1"
+      DETECTOR_TYPE: ${DETECTOR_TYPE:-yolo}
     volumes:
       - ./models:/models
       - ./data:/data

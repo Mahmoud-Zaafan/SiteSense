@@ -10,7 +10,13 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN --mount=type=cache,target=/root/.cache/pip pip3 install -r requirements.txt
+# --extra-index-url points at PyTorch's CU121 wheels (bundled CUDA libs).
+# This avoids pip exploring hundreds of nvidia-* subdep combinations from PyPI.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip3 install --timeout 300 --retries 10 \
+        --index-url https://download.pytorch.org/whl/cu121 \
+        --extra-index-url https://pypi.org/simple \
+        -r requirements.txt
 
 # Copy service code
 COPY . .
