@@ -516,7 +516,7 @@ Originally indexed by transient `track_id` — state reset every time the tracke
 - Docker & Docker Compose v2
 - NVIDIA GPU with CUDA 12.x drivers
 - [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
-- ~15 GB disk space
+- ~20 GB disk space
 
 ### 1. Clone & Configure
 
